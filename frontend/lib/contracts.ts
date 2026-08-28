@@ -366,6 +366,9 @@ export async function submitProof(params: {
  * Submit an aggregate proof that bundles N credential proofs into a single
  * on-chain transaction. Accepts arrays of issuer IDs and credential types for
  * extensibility to N≤5.
+ *
+ * Each credential gets its own expiry derived from `ttlSecs`. The on-chain
+ * contract validates each expiry independently.
  */
 export async function submitAggregateProof(params: {
   holder: string;
@@ -387,6 +390,12 @@ export async function submitAggregateProof(params: {
     const typeScVec = xdr.ScVal.scvVec(
       credentialTypes.map((t) => nativeToScVal(t, { type: "symbol" })),
     );
+    // Build ScVec of expiries — one per credential type.
+    const expiriesScVec = xdr.ScVal.scvVec(
+      credentialTypes.map(() =>
+        nativeToScVal(BigInt(expiry), { type: "u64" }),
+      ),
+    );
     return contract.call(
       "submit_aggregate_proof",
       Address.fromString(holder).toScVal(),
@@ -394,7 +403,7 @@ export async function submitAggregateProof(params: {
       typeScVec,
       xdr.ScVal.scvBytes(Buffer.from(proof)),
       xdr.ScVal.scvBytes(Buffer.from(publicInputs)),
-      nativeToScVal(BigInt(expiry), { type: "u64" }),
+      expiriesScVec,
     );
   }, "Aggregate submission");
 }
